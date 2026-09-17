@@ -4,12 +4,13 @@ from __future__ import annotations
 import json
 import os
 import sys
+import secrets
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -31,6 +32,58 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================
+# PASSWORD PROTECTION
+# ============================================================
+ADMIN_PASSWORD = os.environ.get("LICENSE_MANAGER_PASSWORD", "admin123")
+active_sessions: dict[str, dict] = {}
+
+
+class LoginRequest(BaseModel):
+    password: str
+
+
+def create_session() -> str:
+    token = secrets.token_urlsafe(32)
+    active_sessions[token] = {
+        "created": datetime.now().isoformat(),
+    }
+    return token
+
+
+def verify_session(token: str | None) -> bool:
+    if not token:
+        return False
+    return token in active_sessions
+
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    if req.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Wrong password")
+    token = create_session()
+    return {"token": token, "message": "Login successful"}
+
+
+@app.get("/api/auth/check")
+def check_auth(token: str | None = None):
+    if not token:
+        return {"authenticated": False}
+    return {"authenticated": verify_session(token)}
+
+
+@app.post("/api/auth/logout")
+def logout(token: str | None = None):
+    if token and token in active_sessions:
+        del active_sessions[token]
+    return {"message": "Logged out"}
+
+
+def require_auth(request: Request):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not verify_session(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 # License database (JSON file)
 LICENSE_DB = Path(__file__).parent / "licenses.json"
@@ -81,15 +134,15 @@ def serve_dashboard():
     return HTMLResponse(content=dashboard_path.read_text(encoding="utf-8"))
 
 
-@app.get("/api/licenses")
-def list_licenses():
+@app.get("/api/licenses", dependencies=[Depends(require_auth)])
+def list_licenses(request: Request):
     """List all licenses."""
     licenses = load_licenses()
     return licenses
 
 
-@app.post("/api/licenses")
-def create_license(req: LicenseCreate):
+@app.post("/api/licenses", dependencies=[Depends(require_auth)])
+def create_license(req: LicenseCreate, request: Request):
     """Generate a new license key."""
     licenses = load_licenses()
 
@@ -130,8 +183,8 @@ def create_license(req: LicenseCreate):
     return license_record
 
 
-@app.delete("/api/licenses/{license_id}")
-def delete_license(license_id: int):
+@app.delete("/api/licenses/{license_id}", dependencies=[Depends(require_auth)])
+def delete_license(license_id: int, request: Request):
     """Delete a license."""
     licenses = load_licenses()
     licenses = [l for l in licenses if l["id"] != license_id]
@@ -139,8 +192,8 @@ def delete_license(license_id: int):
     return {"message": "License deleted"}
 
 
-@app.patch("/api/licenses/{license_id}/toggle")
-def toggle_license(license_id: int):
+@app.patch("/api/licenses/{license_id}/toggle", dependencies=[Depends(require_auth)])
+def toggle_license(license_id: int, request: Request):
     """Toggle license active/inactive."""
     licenses = load_licenses()
     for lic in licenses:
@@ -151,8 +204,8 @@ def toggle_license(license_id: int):
     raise HTTPException(status_code=404, detail="License not found")
 
 
-@app.get("/api/licenses/{license_id}/verify")
-def verify_license(license_id: int):
+@app.get("/api/licenses/{license_id}/verify", dependencies=[Depends(require_auth)])
+def verify_license(license_id: int, request: Request):
     """Verify a license key."""
     licenses = load_licenses()
     for lic in licenses:
@@ -167,8 +220,8 @@ def verify_license(license_id: int):
     raise HTTPException(status_code=404, detail="License not found")
 
 
-@app.get("/api/stats")
-def get_stats():
+@app.get("/api/stats", dependencies=[Depends(require_auth)])
+def get_stats(request: Request):
     """Get license statistics."""
     licenses = load_licenses()
     total = len(licenses)
@@ -192,8 +245,8 @@ def get_stats():
     }
 
 
-@app.get("/api/fingerprint")
-def get_fingerprint():
+@app.get("/api/fingerprint", dependencies=[Depends(require_auth)])
+def get_fingerprint(request: Request):
     """Get the local machine fingerprint."""
     return {"fingerprint": get_hardware_fingerprint()}
 
@@ -262,8 +315,8 @@ def send_email(to_email: str, subject: str, body: str,
     return True
 
 
-@app.post("/api/backup/email")
-def send_backup_email(req: EmailBackupRequest):
+@app.post("/api/backup/email", dependencies=[Depends(require_auth)])
+def send_backup_email(req: EmailBackupRequest, request: Request):
     """Send license backup to email."""
     licenses = load_licenses()
     
@@ -328,8 +381,8 @@ def send_backup_email(req: EmailBackupRequest):
         raise HTTPException(status_code=500, detail=f"فشل الإرسال: {str(e)}")
 
 
-@app.post("/api/backup/download")
-def download_backup():
+@app.post("/api/backup/download", dependencies=[Depends(require_auth)])
+def download_backup(request: Request):
     """Download backup as JSON file."""
     licenses = load_licenses()
     backup_data = {
