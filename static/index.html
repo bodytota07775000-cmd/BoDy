@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>License Manager - نظام إدارة التراخيص</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e40af',
+                        'primary-light': '#3b82f6',
+                        'primary-dark': '#1e3a8a',
+                        secondary: '#0891b2',
+                        success: '#059669',
+                        warning: '#d97706',
+                        danger: '#dc2626',
+                        surface: '#ffffff',
+                        'surface-dark': '#f8fafc',
+                    },
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Cairo', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .card-hover { transition: all 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .gradient-bg { background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%); }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: scale(1.02); }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .modal-overlay { backdrop-filter: blur(4px); }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <span class="material-symbols-outlined text-3xl">vpn_key</span>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold">License Manager</h1>
+                        <p class="text-blue-100 text-sm">نظام إدارة التراخيص</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="showCreateModal()" class="bg-white text-primary px-6 py-2 rounded-lg font-semibold hover:bg-blue-50 transition-colors flex items-center gap-2">
+                        <span class="material-symbols-outlined text-xl">add</span>
+                        ترخيص جديد
+                    </button>
+                    <button onclick="showBackupModal()" class="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors flex items-center gap-2">
+                        <span class="material-symbols-outlined">email</span>
+                        نسخ احتياطي
+                    </button>
+                    <button onclick="refreshData()" class="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors">
+                        <span class="material-symbols-outlined">refresh</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Cards -->
+    <div class="max-w-7xl mx-auto px-6 py-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <!-- Total Licenses -->
+            <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">إجمالي التراخيص</p>
+                        <p id="stat-total" class="text-3xl font-bold text-gray-800 mt-1">0</p>
+                    </div>
+                    <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
+                        <span class="material-symbols-outlined text-3xl text-primary">key</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Licenses -->
+            <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">تراخيص نشطة</p>
+                        <p id="stat-active" class="text-3xl font-bold text-success mt-1">0</p>
+                    </div>
+                    <div class="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center">
+                        <span class="material-symbols-outlined text-3xl text-success">check_circle</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inactive Licenses -->
+            <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">تراخيص معطلة</p>
+                        <p id="stat-inactive" class="text-3xl font-bold text-warning mt-1">0</p>
+                    </div>
+                    <div class="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center">
+                        <span class="material-symbols-outlined text-3xl text-warning">pause_circle</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expired Licenses -->
+            <div class="stat-card bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm font-medium">تراخيص منتهية</p>
+                        <p id="stat-expired" class="text-3xl font-bold text-danger mt-1">0</p>
+                    </div>
+                    <div class="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center">
+                        <span class="material-symbols-outlined text-3xl text-danger">cancel</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Licenses Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">list</span>
+                        قائمة التراخيص
+                    </h2>
+                    <div class="flex items-center gap-3">
+                        <input type="text" id="search-input" placeholder="بحث بالاسم أو البصمة..." 
+                            class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none w-64"
+                            oninput="filterLicenses()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">#</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">العميل</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">البصمة</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">مفتاح الترخيص</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">الانتهاء</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">الحالة</th>
+                            <th class="px-6 py-4 text-right text-sm font-semibold text-gray-600">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="licenses-table" class="divide-y divide-gray-100">
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                                <span class="material-symbols-outlined text-5xl mb-2 block">inbox</span>
+                                لا توجد تراخيص بعد
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create License Modal -->
+    <div id="create-modal" class="hidden fixed inset-0 z-50 bg-black/50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto fade-in">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">add_circle</span>
+                    إنشاء ترخيص جديد
+                </h3>
+                <button onclick="hideCreateModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <form id="create-form" class="p-6 space-y-5">
+                <!-- Customer Name -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">اسم العميل</label>
+                    <input type="text" id="customer-name" placeholder="اسم العميل أو الشركة"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                </div>
+
+                <!-- Customer Phone -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">رقم الهاتف</label>
+                    <input type="tel" id="customer-phone" placeholder="01xxxxxxxxx" dir="ltr" style="text-align: left"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                </div>
+
+                <!-- Hardware Fingerprint -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">بصمة الجهاز (Hardware Fingerprint)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="fingerprint" placeholder="الصق بصمة الجهاز هنا..." 
+                            class="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none font-mono text-sm">
+                        <button type="button" onclick="copyLocalFingerprint()" 
+                            class="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+                            title="استخدم بصمة هذا الجهاز">
+                            <span class="material-symbols-outlined">content_copy</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">احصل على البصمة من جهاز العميل عبر برنامج ERP</p>
+                </div>
+
+                <!-- Expiry Date -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">تاريخ الانتهاء</label>
+                    <input type="date" id="expires-at"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                    <p class="text-xs text-gray-400 mt-1">اتركه فارغاً للترخيص الدائم</p>
+                </div>
+
+                <!-- Max Users -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">الحد الأقصى للمستخدمين</label>
+                    <input type="number" id="max-users" value="1" min="1" max="100"
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">ملاحظات</label>
+                    <textarea id="notes" rows="2" placeholder="ملاحظات اختيارية..."
+                        class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" 
+                    class="w-full gradient-bg text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined">vpn_key</span>
+                    إنشاء الترخيص
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- View License Modal -->
+    <div id="view-modal" class="hidden fixed inset-0 z-50 bg-black/50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg fade-in">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">visibility</span>
+                    تفاصيل الترخيص
+                </h3>
+                <button onclick="hideViewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div id="view-content" class="p-6">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-6 left-6 bg-gray-800 text-white px-6 py-3 rounded-xl shadow-lg z-50 fade-in">
+        <span id="toast-message"></span>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backup-modal" class="hidden fixed inset-0 z-50 bg-black/50 modal-overlay flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md fade-in">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">email</span>
+                    نسخ احتياطي على Gmail
+                </h3>
+                <button onclick="hideBackupModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-6">
+                <p class="text-sm text-gray-500 mb-4">سيتم إرسال جميع التراخيص كملف مرفق على إيميلك</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">بريدك الإلكتروني (Gmail)</label>
+                        <input type="email" id="backup-email" placeholder="yourname@gmail.com" dir="ltr" style="text-align: left"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">كلمة مرور التطبيق (App Password)</label>
+                        <input type="password" id="backup-password" placeholder="xxxx xxxx xxxx xxxx" dir="ltr" style="text-align: left"
+                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent outline-none">
+                        <p class="text-xs text-gray-400 mt-1">من Google Account → Security → 2-Step Verification → App Passwords</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex gap-3">
+                    <button onclick="sendBackup()" class="flex-1 gradient-bg text-white py-3 rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">send</span>
+                        إرسال النسخة الاحتياطية
+                    </button>
+                    <button onclick="downloadBackup()" class="px-4 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors" title="تحميل كملف">
+                        <span class="material-symbols-outlined">download</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = "";
+        let allLicenses = [];
+
+        // Load data on page load
+        document.addEventListener("DOMContentLoaded", () => {
+            refreshData();
+        });
+
+        async function refreshData() {
+            try {
+                const [statsRes, licensesRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/stats`),
+                    fetch(`${API_BASE}/api/licenses`)
+                ]);
+
+                if (statsRes.ok) {
+                    const stats = await statsRes.json();
+                    document.getElementById("stat-total").textContent = stats.total;
+                    document.getElementById("stat-active").textContent = stats.active;
+                    document.getElementById("stat-inactive").textContent = stats.inactive;
+                    document.getElementById("stat-expired").textContent = stats.expired;
+                }
+
+                if (licensesRes.ok) {
+                    allLicenses = await licensesRes.json();
+                    renderTable(allLicenses);
+                }
+            } catch (err) {
+                console.error("Failed to load data:", err);
+            }
+        }
+
+        function renderTable(licenses) {
+            const tbody = document.getElementById("licenses-table");
+            if (!licenses.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                            <span class="material-symbols-outlined text-5xl mb-2 block">inbox</span>
+                            لا توجد تراخيص بعد
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = licenses.map((lic, i) => {
+                const statusClass = lic.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
+                const statusText = lic.is_active ? "نشط" : "معطل";
+                const fpShort = lic.fingerprint.substring(0, 16) + "...";
+                const keyShort = lic.license_key.substring(0, 20) + "...";
+
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 text-sm text-gray-500">${lic.id}</td>
+                        <td class="px-6 py-4">
+                            <div class="font-semibold text-gray-800">${escHtml(lic.customer_name || "—")}</div>
+                            <div class="text-xs text-gray-400">${escHtml(lic.customer_phone || "")}</div>
+                        </td>
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500">${fpShort}</td>
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500">${keyShort}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">${lic.expires_at || "دائم"}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusClass}">${statusText}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-2">
+                                <button onclick="viewLicense(${lic.id})" class="p-2 text-primary hover:bg-blue-50 rounded-lg transition-colors" title="عرض">
+                                    <span class="material-symbols-outlined text-xl">visibility</span>
+                                </button>
+                                <button onclick="copyLicenseKey(${lic.id})" class="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors" title="نسخ المفتاح">
+                                    <span class="material-symbols-outlined text-xl">content_copy</span>
+                                </button>
+                                <button onclick="toggleLicense(${lic.id})" class="p-2 ${lic.is_active ? 'text-warning' : 'text-success'} hover:bg-gray-100 rounded-lg transition-colors" title="${lic.is_active ? 'تعطيل' : 'تفعيل'}">
+                                    <span class="material-symbols-outlined text-xl">${lic.is_active ? 'pause' : 'play_arrow'}</span>
+                                </button>
+                                <button onclick="deleteLicense(${lic.id})" class="p-2 text-danger hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                                    <span class="material-symbols-outlined text-xl">delete</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join("");
+        }
+
+        function filterLicenses() {
+            const q = document.getElementById("search-input").value.trim().toLowerCase();
+            if (!q) { renderTable(allLicenses); return; }
+            const filtered = allLicenses.filter(l =>
+                (l.customer_name || "").toLowerCase().includes(q) ||
+                (l.customer_phone || "").includes(q) ||
+                (l.fingerprint || "").toLowerCase().includes(q)
+            );
+            renderTable(filtered);
+        }
+
+        // Modal functions
+        function showCreateModal() {
+            document.getElementById("create-modal").classList.remove("hidden");
+            document.getElementById("customer-name").focus();
+        }
+
+        function hideCreateModal() {
+            document.getElementById("create-modal").classList.add("hidden");
+            document.getElementById("create-form").reset();
+        }
+
+        function showViewModal() {
+            document.getElementById("view-modal").classList.remove("hidden");
+        }
+
+        function hideViewModal() {
+            document.getElementById("view-modal").classList.add("hidden");
+        }
+
+        function showBackupModal() {
+            document.getElementById("backup-modal").classList.remove("hidden");
+        }
+
+        function hideBackupModal() {
+            document.getElementById("backup-modal").classList.add("hidden");
+        }
+
+        async function sendBackup() {
+            const email = document.getElementById("backup-email").value.trim();
+            const password = document.getElementById("backup-password").value.trim();
+            
+            if (!email || !password) {
+                showToast("الرجاء إدخال البريد وكلمة المرور", "error");
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/backup/email`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, app_password: password }),
+                });
+                
+                if (res.ok) {
+                    showToast("تم إرسال النسخة الاحتياطية بنجاح!");
+                    hideBackupModal();
+                } else {
+                    const err = await res.json();
+                    showToast(err.detail || "فشل الإرسال", "error");
+                }
+            } catch (err) {
+                showToast("خطأ في الاتصال بالسيرفر", "error");
+            }
+        }
+
+        async function downloadBackup() {
+            try {
+                const res = await fetch(`${API_BASE}/api/backup/download`, { method: "POST" });
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `licenses_backup_${new Date().toISOString().split("T")[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    showToast("تم تحميل النسخة الاحتياطية!");
+                }
+            } catch (err) {
+                showToast("خطأ في التحميل", "error");
+            }
+        }
+
+        // Create license
+        document.getElementById("create-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const data = {
+                customer_name: document.getElementById("customer-name").value.trim() || null,
+                customer_phone: document.getElementById("customer-phone").value.trim() || null,
+                fingerprint: document.getElementById("fingerprint").value.trim(),
+                expires_at: document.getElementById("expires-at").value || null,
+                max_users: parseInt(document.getElementById("max-users").value) || 1,
+                notes: document.getElementById("notes").value.trim() || null,
+            };
+
+            if (!data.fingerprint) {
+                showToast("الرجاء إدخال بصمة الجهاز", "error");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/licenses`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data),
+                });
+
+                if (res.ok) {
+                    hideCreateModal();
+                    showToast("تم إنشاء الترخيص بنجاح ✓");
+                    refreshData();
+                } else {
+                    const err = await res.json();
+                    showToast(err.detail || "خطأ في إنشاء الترخيص", "error");
+                }
+            } catch (err) {
+                showToast("تعذر الاتصال بالسيرفر", "error");
+            }
+        });
+
+        // View license details
+        async function viewLicense(id) {
+            try {
+                const res = await fetch(`${API_BASE}/api/licenses/${id}/verify`);
+                if (!res.ok) throw new Error("Failed");
+                const data = await res.json();
+
+                const lic = data.license;
+                const info = data.info;
+
+                document.getElementById("view-content").innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">العميل</span>
+                            <span class="font-semibold">${escHtml(lic.customer_name || "—")}</span>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">الهاتف</span>
+                            <span class="font-semibold" dir="ltr">${escHtml(lic.customer_phone || "—")}</span>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">البصمة</span>
+                            <span class="font-mono text-xs">${lic.fingerprint}</span>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-xl">
+                            <p class="text-sm text-blue-600 mb-2 font-semibold">مفتاح الترخيص:</p>
+                            <p class="font-mono text-sm text-blue-800 break-all select-all">${lic.license_key}</p>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">الحالة</span>
+                            <span class="px-3 py-1 rounded-full text-xs font-semibold ${data.is_valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                                ${data.is_valid ? "صالح ✓" : "غير صالح ✗"}
+                            </span>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">الانتهاء</span>
+                            <span class="font-semibold">${lic.expires_at || "دائم"}</span>
+                        </div>
+                        <div class="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                            <span class="text-gray-600">الحد الأقصى للمستخدمين</span>
+                            <span class="font-semibold">${lic.max_users}</span>
+                        </div>
+                        ${lic.notes ? `
+                        <div class="p-4 bg-yellow-50 rounded-xl">
+                            <p class="text-sm text-yellow-600 mb-1 font-semibold">ملاحظات:</p>
+                            <p class="text-yellow-800">${escHtml(lic.notes)}</p>
+                        </div>
+                        ` : ""}
+                        <button onclick="copyLicenseKey(${lic.id})" class="w-full py-3 bg-primary text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined">content_copy</span>
+                            نسخ مفتاح الترخيص
+                        </button>
+                    </div>`;
+
+                showViewModal();
+            } catch (err) {
+                showToast("تعذر تحميل التفاصيل", "error");
+            }
+        }
+
+        // Copy license key
+        function copyLicenseKey(id) {
+            const lic = allLicenses.find(l => l.id === id);
+            if (lic) {
+                navigator.clipboard.writeText(lic.license_key).then(() => {
+                    showToast("تم نسخ مفتاح الترخيص ✓");
+                }).catch(() => {
+                    prompt("انسخ المفتاح:", lic.license_key);
+                });
+            }
+        }
+
+        // Toggle license
+        async function toggleLicense(id) {
+            try {
+                await fetch(`${API_BASE}/api/licenses/${id}/toggle`, { method: "PATCH" });
+                refreshData();
+            } catch (err) {
+                showToast("تعذر تغيير الحالة", "error");
+            }
+        }
+
+        // Delete license
+        async function deleteLicense(id) {
+            if (!confirm("هل أنت متأكد من حذف هذا الترخيص؟")) return;
+            try {
+                await fetch(`${API_BASE}/api/licenses/${id}`, { method: "DELETE" });
+                showToast("تم حذف الترخيص");
+                refreshData();
+            } catch (err) {
+                showToast("تعذر الحذف", "error");
+            }
+        }
+
+        // Copy local fingerprint
+        async function copyLocalFingerprint() {
+            try {
+                const res = await fetch(`${API_BASE}/api/fingerprint`);
+                const data = await res.json();
+                document.getElementById("fingerprint").value = data.fingerprint;
+                showToast("تم نسخ بصمة هذا الجهاز");
+            } catch (err) {
+                showToast("تعذر الحصول على البصمة", "error");
+            }
+        }
+
+        // Utility functions
+        function escHtml(str) {
+            const div = document.createElement("div");
+            div.textContent = str ?? "";
+            return div.innerHTML;
+        }
+
+        function showToast(msg, type = "success") {
+            const toast = document.getElementById("toast");
+            const toastMsg = document.getElementById("toast-message");
+            toastMsg.textContent = msg;
+            toast.className = toast.className.replace("hidden", "");
+            toast.style.backgroundColor = type === "error" ? "#dc2626" : "#1e293b";
+            setTimeout(() => toast.classList.add("hidden"), 3000);
+        }
+    </script>
+</body>
+</html>

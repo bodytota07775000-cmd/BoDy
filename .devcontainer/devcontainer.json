@@ -1,0 +1,13 @@
+﻿{
+  "name": "License Manager",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "forwardPorts": [8001],
+  "postCreateCommand": "pip install -r requirements.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  }
+}
