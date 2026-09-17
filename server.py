@@ -36,7 +36,7 @@ app.add_middleware(
 # ============================================================
 # PASSWORD PROTECTION
 # ============================================================
-ADMIN_PASSWORD = os.environ.get("LICENSE_MANAGER_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.environ.get("LICENSE_MANAGER_PASSWORD", "0163361829@BoDy")
 active_sessions: dict[str, dict] = {}
 
 
