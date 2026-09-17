@@ -85,6 +85,66 @@ def require_auth(request: Request):
     if not verify_session(token):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+
+# ============================================================
+# SECURITY: Rate Limiting + IP Logging + Session Timeout
+# ============================================================
+from collections import defaultdict
+import time
+
+login_attempts: dict[str, list[float]] = defaultdict(list)
+ip_logs: list[dict] = []
+MAX_LOGIN_ATTEMPTS = 5
+LOGIN_WINDOW = 300  # 5 minutes
+SESSION_TIMEOUT = 3600  # 1 hour
+
+
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def log_action(ip: str, action: str, detail: str = ""):
+    ip_logs.append({
+        "ip": ip,
+        "action": action,
+        "detail": detail,
+        "timestamp": datetime.now().isoformat(),
+    })
+    if len(ip_logs) > 1000:
+        ip_logs.pop(0)
+
+
+def check_rate_limit(ip: str):
+    now = time.time()
+    attempts = login_attempts[ip]
+    login_attempts[ip] = [t for t in attempts if now - t < LOGIN_WINDOW]
+    if len(login_attempts[ip]) >= MAX_LOGIN_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again in 5 minutes.")
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    ip = get_client_ip(request)
+    path = request.url.path
+    
+    # Block suspicious paths
+    suspicious = ["/wp-admin", "/.env", "/config", "/admin", "/phpmyadmin", ".php"]
+    for s in suspicious:
+        if s in path.lower():
+            log_action(ip, "BLOCKED", path)
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
+    
+    # Log API requests
+    if path.startswith("/api/"):
+        log_action(ip, "API", path)
+    
+    response = await call_next(request)
+    return response
+
+
 # License database (JSON file)
 LICENSE_DB = Path(__file__).parent / "licenses.json"
 
